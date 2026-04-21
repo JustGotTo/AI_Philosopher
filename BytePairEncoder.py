@@ -31,12 +31,17 @@ class BytePairEncoder(nn.Module):
 
     def next_step_merge(self, wordList, merge):
         chars = ["<"] + wordList + [">"]
-        if list(self.vocab[merge]) in chars:
-            index = chars.index(merge[0])
-            chars = list(filter(lambda c: c not in merge, chars))
-            chars.insert(index, merge[0] + merge[1])
-            #joining all the merges in the word(from the ones we took into vocab)
-        return chars
+        new_chars = []
+        i = 0
+        left, right = merge
+        while i < len(chars):
+            if i < len(chars) - 1 and chars[i] == merge[0] and chars[i + 1] == merge[1]:
+                new_chars.append(merge[0] + merge[1])
+                i += 2
+            else:
+                new_chars.append(chars[i])
+                i += 1
+        return new_chars[1:-1]
 
     def merge_most_frequent(self):
         largest = 0
