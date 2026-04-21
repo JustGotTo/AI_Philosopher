@@ -45,12 +45,17 @@ class BytePairEncoder(nn.Module):
 
     def merge_most_frequent(self):
         largest = 0
-        merg = ""
-        for merge in self.frequency.keys():
-            if self.frequency[merge] > largest:
-                largest = self.frequency[merge]
-                merg = merge
-        self.vocab[merg] = len(self.vocab)
+        best = ""
+        for merge, count in self.frequency.items():
+            if count > largest:
+                largest = count
+                best = merge
+        for split in range(1, len(best)):
+            left, right = best[:split], best[split:]
+            if left in self.vocab or len(left) == 1:
+                self.merges.append((left, right))
+                break
+        self.vocab[best] = len(self.vocab)
 
 
 
