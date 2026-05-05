@@ -1,92 +1,128 @@
-import torch as t
-import torch.nn.functional as F
-import numpy as np
-import pandas as pd
 import torch.nn as nn
-import re, collections
-
-# TODO: FINAL GOAL: Make small language model, with a handcrafted encoder and optimizer to allow for at-home training
-# TODO: FIRST GOAL: Make a byte-pair encoder.
-# TODO: SECOND GOAL: Introduce hierarchical attention, hard-code the algorithm, find the dimensions that will work best
-# TODO: THIRD GOAL: Create an updated standard attention mechanism for the "word clouds"
+import re
 
 
 class BytePairEncoder(nn.Module):
-    def __init__(self, prompt, vocab_size, input_size=128, hidden_size=384, output_size=384):
+    def __init__(self, prompt="", vocab_size=1000, input_size=128, hidden_size=384, output_size=384):
         super().__init__()
         self.prompt = prompt
         self.vocab_size = vocab_size
-        self.vocab = {}   #maps token string → integer ID
+        self.vocab = {}
         self.frequency = {}
+        self.merges = []
 
-    def get_pairs(self, wordList):
-        chars = ["<"] + wordList + [">"]
-        for char in range(len(chars)-1):
-            pair = chars[char] + chars[char+1]
-            if pair in self.frequency:
-               self.frequency[pair] += 1
-            else:
-                self.frequency[pair] = 1
-                #self.vocab[pair] = len(self.vocab)
+    def get_pairs(self, words):
+        frequency = {}
 
-    def next_step_merge(self, wordList, merge):
-        chars = ["<"] + wordList + [">"]
-        new_chars = []
+        for word in words:
+            for i in range(len(word) - 1):
+                pair = (word[i], word[i + 1])
+                frequency[pair] = frequency.get(pair, 0) + 1
+
+        return frequency
+
+    def merge_pair_in_word(self, word, merge):
+        new_word = []
         i = 0
         left, right = merge
-        while i < len(chars):
-            if i < len(chars) - 1 and chars[i] == merge[0] and chars[i + 1] == merge[1]:
-                new_chars.append(merge[0] + merge[1])
+        merged_token = left + right
+
+        while i < len(word):
+            if i < len(word) - 1 and word[i] == left and word[i + 1] == right:
+                new_word.append(merged_token)
                 i += 2
             else:
-                new_chars.append(chars[i])
+                new_word.append(word[i])
                 i += 1
-        return new_chars[1:-1]
 
-    def merge_most_frequent(self):
-        largest = 0
-        best = ""
-        for merge, count in self.frequency.items():
-            if count > largest:
-                largest = count
-                best = merge
-        for split in range(1, len(best)):
-            left, right = best[:split], best[split:]
-            if left in self.vocab or len(left) == 1:
-                self.merges.append((left, right))
-                break
-        self.vocab[best] = len(self.vocab)
+        return new_word
 
+    def apply_merge(self, words, merge):
+        new_words = []
+        changed = False
 
-
-    def tokenize(self, prompt):
-        words = re.findall(r'\w+', prompt)
-        self.frequency = {}
         for word in words:
-            word = list(word)
-            self.get_pairs(word) #first we find all pairs in all words and get frequency for each
+            new_word = self.merge_pair_in_word(word, merge)
+
+            if new_word != word:
+                changed = True
+
+            new_words.append(new_word)
+
+        return new_words, changed
+
+    def add_token_to_vocab(self, token):
+        if token not in self.vocab and len(self.vocab) < self.vocab_size:
+            self.vocab[token] = len(self.vocab)
+
+    def train_vocab(self, prompt):
+        raw_words = re.findall(r"\w+", prompt)
+
+        words = [list(word) for word in raw_words]
+
+        # Add individual characters first.
+        for word in words:
+            for token in word:
+                self.add_token_to_vocab(token)
 
         while len(self.vocab) < self.vocab_size:
+            self.frequency = self.get_pairs(words)
+
             if not self.frequency:
                 break
 
-            self.merge_most_frequent()
-            best_merge = list(self.vocab.keys())[-1]
+            best_merge = max(self.frequency, key=self.frequency.get)
+            merged_token = best_merge[0] + best_merge[1]
 
-            new_words = []
-            for word in words:
-                new_words.append(self.next_step_merge(word, best_merge))
+            new_words, changed = self.apply_merge(words, best_merge)
+
+            if not changed:
+                break
+
+            if merged_token in self.vocab:
+                del self.frequency[best_merge]
+
+                if not self.frequency:
+                    break
+
+                continue
+
+            self.merges.append(best_merge)
+            self.add_token_to_vocab(merged_token)
+
             words = new_words
 
-            self.frequency = {}
-            for word in words:
-                self.get_pairs(word)
+        return words
 
+    def encode_word(self, word):
+        tokens = list(word)
 
+        for merge in self.merges:
+            tokens = self.merge_pair_in_word(tokens, merge)
 
-        return [self.vocab[pair] for pair in pairs.keys()]
+        return tokens
 
+    def tokenize(self, prompt):
+        self.vocab = {}
+        self.frequency = {}
+        self.merges = []
 
+        self.train_vocab(prompt)
+
+        raw_words = re.findall(r"\w+", prompt)
+        result = []
+
+        for word in raw_words:
+            tokens = self.encode_word(word)
+
+            for token in tokens:
+                if token in self.vocab:
+                    result.append(self.vocab[token])
+
+        return result
+
+    def forward(self, prompt):
+        return self.tokenize(prompt)
 
 
 class SLModel(nn.Module):
@@ -97,4 +133,3 @@ class SLModel(nn.Module):
         self.layers = layers
         self.enable_encoder = enable_encoder
         self.encoder = BytePairEncoder(vocab_size=self.vocab_size, prompt="")
-
