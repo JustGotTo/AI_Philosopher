@@ -1,9 +1,11 @@
 from BytePairEncoder import BytePairEncoder
 
 import torch.nn as nn
+import torch as t
+import numpy as np
 
 class Embedding(nn.Module):
-    def __init__(self, prompt, vocab_size=1000, embedding_dim=64, hidden_size=384, output_size=384):
+    def __init__(self, prompt, vocab_size=1000, embedding_dim=128, hidden_size=512, output_size=512):
         super().__init__()
         self.prompt = BytePairEncoder(prompt=prompt).forward(prompt)
         self.embedding_dim = embedding_dim #same as input_dim
