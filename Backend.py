@@ -12,3 +12,14 @@ class Embedding(nn.Module):
 
     def forward(self, input):
         return self.embedding(input) #Simple embedding mechanism
+
+
+class AddNorm(nn.Module):
+    def __init__(self, input):
+        super().__init__()
+        self.input = input
+
+    def forward(self, input):
+        input = np.array(self.input + input)
+        rms = np.sqrt(np.mean(np.square(input)))
+
