@@ -17,11 +17,24 @@ class Embedding(nn.Module):
 
 
 class AddNorm(nn.Module):
-    def __init__(self, input):
+    def __init__(self, hidden_size, eps=1e-8):
         super().__init__()
-        self.input = input
+        self.eps = eps
+        self.weight = nn.Parameter(t.ones(hidden_size))
 
-    def forward(self, input):
-        input = np.array(self.input + input)
-        rms = np.sqrt(np.mean(np.square(input)))
+    def forward(self, residual, x):
+        x = residual + x
+        rms = t.sqrt(t.mean(x ** 2, dim=-1, keepdim=True) + self.eps)
+        return self.weight * (x / rms)
+
+
+class LinearPostAttention(nn.Module):
+    def __init__(self, hidden_size, output_size, eps=1e-8):
+        super().__init__()
+        self.eps = eps
+        self.weight = nn.Parameter(t.ones(output_size)*0.9)
+        self.bias = nn.Parameter(t.zeros(output_size))
+
+    def forward(self, x):
+        return self.weight * x + self.bias
 
