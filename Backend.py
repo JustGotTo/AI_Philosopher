@@ -29,7 +29,7 @@ class AddNorm(nn.Module):
 
 
 class LinearPostAttention(nn.Module):
-    def __init__(self, hidden_size, output_size, eps=1e-8):
+    def __init__(self, output_size, eps=1e-8):
         super().__init__()
         self.eps = eps
         self.weight = nn.Parameter(t.ones(output_size)*0.9)
@@ -38,3 +38,48 @@ class LinearPostAttention(nn.Module):
     def forward(self, x):
         return self.weight * x + self.bias
 
+class SentenceFeedForward(nn.Module):
+    def __init__(self, hidden_size, output_size, eps=1e-8):
+        super().__init__()
+        self.eps = eps
+        self.linear1 = nn.Linear(hidden_size, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, output_size)
+        self.norm = AddNorm(hidden_size)
+        self.act = nn.GELU()
+
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.norm(x, x)
+        x = self.act(x)
+        x = self.linear2(x)
+        return x
+
+class PhraseFeedForward(nn.Module):
+    def __init__(self, hidden_size, output_size, eps=1e-8):
+        super().__init__()
+        self.eps = eps
+        self.linear1 = nn.Linear(hidden_size, output_size)
+        self.norm = AddNorm(output_size)
+        self.act = nn.GELU()
+
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.norm(x, x)
+        x = self.act(x)
+        return x
+
+class WordfeedForward(nn.Module):
+    def __init__(self, hidden_size, output_size, eps=1e-8):
+        super().__init__()
+        self.eps = eps
+        self.linear1 = nn.Linear(hidden_size, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, output_size)
+        self.norm = AddNorm(output_size)
+        self.act = nn.GELU()
+
+    def forward(self, x):
+        x = self.linear1(x)
+        x = self.act(x)
+        x = self.linear2(x)
+        x = self.norm(x, x)
+        return x
