@@ -61,14 +61,16 @@ class PhraseFeedForward(nn.Module):
         self.linear1 = nn.Linear(hidden_size, output_size)
         self.norm = AddNorm(output_size)
         self.act = nn.GELU()
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
         x = self.linear1(x)
-        x = self.norm(x, x)
         x = self.act(x)
+        x = self.dropout(x)
+        x = self.norm(x, x)
         return x
 
-class WordfeedForward(nn.Module):
+class WordFeedForward(nn.Module):
     def __init__(self, hidden_size, output_size, eps=1e-8):
         super().__init__()
         self.eps = eps
