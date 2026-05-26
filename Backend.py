@@ -55,33 +55,50 @@ class SentenceFeedForward(nn.Module):
         return x
 
 class PhraseFeedForward(nn.Module):
-    def __init__(self, hidden_size, output_size, eps=1e-8):
+    def __init__(self, hidden_size, output_size, shrinked_size, eps=1e-8):
         super().__init__()
         self.eps = eps
+        self.shrinked_size = hidden_size//8
         self.linear1 = nn.Linear(hidden_size, output_size)
+        self.linear2 = nn.Linear(hidden_size, shrinked_size)
         self.norm = AddNorm(output_size)
         self.act = nn.GELU()
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(0.2)
 
     def forward(self, x):
         x = self.linear1(x)
-        x = self.act(x)
-        x = self.dropout(x)
         x = self.norm(x, x)
+        x = self.act(x)
+        x = self.norm(x, x)
+        x = self.dropout(x)
         return x
 
-class WordFeedForward(nn.Module):
-    def __init__(self, hidden_size, output_size, eps=1e-8):
+class WordfeedForward(nn.Module, PhraseFeedForward):
+    def __init__(self, hidden_size, output_size, shrinked_size, eps=1e-8):
         super().__init__()
         self.eps = eps
-        self.linear1 = nn.Linear(hidden_size, hidden_size)
+        self.shrinked_size = PhraseFeedForward.shrinked_size
+        self.linear1 = nn.Linear(shrinked_size, hidden_size)
         self.linear2 = nn.Linear(hidden_size, output_size)
         self.norm = AddNorm(output_size)
         self.act = nn.GELU()
+        self.dropout = nn.Dropout(0.2)
 
     def forward(self, x):
         x = self.linear1(x)
         x = self.act(x)
         x = self.linear2(x)
         x = self.norm(x, x)
+        x = self.dropout(x)
         return x
+
+class AdaptiveMultiheadMaskedAttention(nn.Module, ):
+    def __init__(self, batch_size, num_heads, full_size, eps=1e-8): #full_size - size before splitting the tokens into batches
+        super().__init__()
+        self.eps = eps
+        self.num_heads = t.floor()
+        self.beliefs = nn.ModuleList([nn.Linear(full_size, full_size) for _ in range(num_heads)]) #Number of layers for MLP would depend on the amount of heads created - linear relationship between the beliefs and amount of data available
+        self.context = nn.ModuleList([nn.Linear(full_size, full_size) for _ in range(num_heads)])
+
+
+
