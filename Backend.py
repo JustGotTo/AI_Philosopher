@@ -39,9 +39,8 @@ class LinearPostAttention(nn.Module):
         return self.weight * x + self.bias
 
 class SentenceFeedForward(nn.Module):
-    def __init__(self, hidden_size, output_size, eps=1e-8):
+    def __init__(self, hidden_size, output_size):
         super().__init__()
-        self.eps = eps
         self.linear1 = nn.Linear(hidden_size, hidden_size)
         self.linear2 = nn.Linear(hidden_size, output_size)
         self.norm = AddNorm(hidden_size)
@@ -55,9 +54,8 @@ class SentenceFeedForward(nn.Module):
         return x
 
 class PhraseFeedForward(nn.Module):
-    def __init__(self, hidden_size, output_size, shrinked_size, eps=1e-8):
+    def __init__(self, hidden_size, output_size, shrinked_size):
         super().__init__()
-        self.eps = eps
         self.shrinked_size = hidden_size//8
         self.linear1 = nn.Linear(hidden_size, output_size)
         self.linear2 = nn.Linear(hidden_size, shrinked_size)
@@ -73,11 +71,10 @@ class PhraseFeedForward(nn.Module):
         x = self.dropout(x)
         return x
 
-class WordfeedForward(nn.Module, PhraseFeedForward):
-    def __init__(self, hidden_size, output_size, shrinked_size, eps=1e-8):
+class WordFeedForward(nn.Module):
+    def __init__(self, hidden_size, output_size, shrinked_size):
         super().__init__()
-        self.eps = eps
-        self.shrinked_size = PhraseFeedForward.shrinked_size
+        self.shrinked_size = shrinked_size
         self.linear1 = nn.Linear(shrinked_size, hidden_size)
         self.linear2 = nn.Linear(hidden_size, output_size)
         self.norm = AddNorm(output_size)
@@ -92,13 +89,31 @@ class WordfeedForward(nn.Module, PhraseFeedForward):
         x = self.dropout(x)
         return x
 
-class AdaptiveMultiheadMaskedAttention(nn.Module, ):
-    def __init__(self, batch_size, num_heads, full_size, eps=1e-8): #full_size - size before splitting the tokens into batches
+class AdaptiveMultiheadMaskedAttention(nn.Module):
+    def __init__(self, batch_size:int, mask_window_size, num_heads, full_size, embedding_size=128, eps=1e-8): #full_size - size of prompt before splitting the tokens into batches
         super().__init__()
         self.eps = eps
-        self.num_heads = t.floor()
-        self.beliefs = nn.ModuleList([nn.Linear(full_size, full_size) for _ in range(num_heads)]) #Number of layers for MLP would depend on the amount of heads created - linear relationship between the beliefs and amount of data available
-        self.context = nn.ModuleList([nn.Linear(full_size, full_size) for _ in range(num_heads)])
+        self.mask_window_size = mask_window_size if mask_window_size < batch_size else batch_size//2
+        self.num_heads = t.floor((mask_window_size + full_size)/(embedding_size + 1))
+        self.batch_size = batch_size
+        self.t_beliefs = t.tensor(np.random.rand(batch_size, embedding_size))
+        self.t_context = t.tensor(np.random.rand(batch_size, embedding_size))
+        self.beliefs = nn.ModuleList([(nn.Linear(full_size, full_size) for _ in range(num_heads-1)), nn.Linear(full_size, batch_size)]) #Number of layers for MLP would depend on the amount of heads created - linear relationship between the beliefs and amount of data available
+        self.context = nn.ModuleList([(nn.Linear(full_size, full_size) for _ in range(num_heads-1)), nn.Linear(full_size, batch_size)])
+
+    def createMask(self):
+        mask = t.ones(self.batch_size, self.batch_size)
+
+        window_size = min(self.mask_window_size, self.batch_size)
+
+        for i in range(self.batch_size):
+            for j in range(window_size):
+                column = (i + j) % self.batch_size
+                mask[i, column] = 0
 
 
 
+        return mask
+
+    def split_batch(self, x):
+        return x.reshape(self.batch_size, )
