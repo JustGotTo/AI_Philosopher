@@ -3,9 +3,11 @@ from BytePairEncoder import BytePairEncoder
 import torch.nn as nn
 import torch as t
 import numpy as np
+from re import re.findall
+
 
 class Embedding(nn.Module):
-    def __init__(self, prompt, vocab_size=1000, embedding_dim=128, hidden_size=512, output_size=512):
+    def __init__(self, prompt, vocab_size=1000, embedding_dim=386, hidden_size=512, output_size=512):
         super().__init__()
         self.prompt = BytePairEncoder(prompt=prompt).forward(prompt)
         self.embedding_dim = embedding_dim #same as input_dim
@@ -90,16 +92,15 @@ class WordFeedForward(nn.Module):
         return x
 
 class AdaptiveMultiheadMaskedAttention(nn.Module):
-    def __init__(self, batch_size:int, mask_window_size, num_heads, full_size, embedding_size=128, eps=1e-8): #full_size - size of prompt before splitting the tokens into batches
+    def __init__(self, batch_size:int, mask_window_size, num_heads, full_size, embedding_size=386, eps=1e-8): #full_size - size of prompt before splitting the tokens into batches
         super().__init__()
         self.eps = eps
         self.mask_window_size = mask_window_size if mask_window_size < batch_size else batch_size//2
         self.num_heads = t.floor((mask_window_size + full_size)/(embedding_size + 1))
         self.batch_size = batch_size
-        self.t_beliefs = t.tensor(np.random.rand(batch_size, embedding_size))
-        self.t_context = t.tensor(np.random.rand(batch_size, embedding_size))
-        self.beliefs = nn.ModuleList([(nn.Linear(full_size, full_size) for _ in range(num_heads-1)), nn.Linear(full_size, batch_size)]) #Number of layers for MLP would depend on the amount of heads created - linear relationship between the beliefs and amount of data available
-        self.context = nn.ModuleList([(nn.Linear(full_size, full_size) for _ in range(num_heads-1)), nn.Linear(full_size, batch_size)])
+        self.t_beliefs = t.tensor(np.random.rand(batch_size, embedding_size)) #tensor for beliefs
+        self.t_context = t.tensor(np.random.rand(batch_size, embedding_size)) #tensor for context
+        self.mask = self.createMask() #creates a mask of the batch_size x batch_size matrix
 
     def createMask(self):
         mask = t.ones(self.batch_size, self.batch_size)
@@ -109,11 +110,18 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
         for i in range(self.batch_size):
             for j in range(window_size):
                 column = (i + j) % self.batch_size
-                mask[i, column] = 0
-
-
+                mask[i, column] = 0 #blocks chunks of sentences from seeing each other
 
         return mask
 
-    def split_batch(self, x):
-        return x.reshape(self.batch_size, )
+    def split_batch(self, x, prompt):
+        sentences = re.findall(r'[^.!?]*\.', prompt)
+        sentences.strip()
+        return sentences
+
+    def getMeanSentenceLength(self, prompt):
+        sentences = re.findall(r'[^.!?]*\.', prompt).strip()
+        return np.mean([len(sentence) for sentence in sentences])
+
+    def
+        

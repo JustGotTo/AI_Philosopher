@@ -115,12 +115,6 @@ class TestBackendLayers(unittest.TestCase):
         self.assertEqual(tuple(y.shape), (batch, seq_len, out))
         self.assertLess(dt, TIME_BUDGET_SEC, f"PhraseFeedForward forward pass too slow: {dt:.4f}s")
 
-
-# Explicitly excluding unfinished or broken classes from tests:
-# - WordfeedForward: inheritance and attribute usage are inconsistent in Backend.py.
-# - AdaptiveMultiheadMaskedAttention: contains incomplete logic (e.g., t.floor()) and unused fields.
-
-
 class TestAdaptiveMultiheadMaskedAttentionMask(unittest.TestCase):
     def test_create_mask_dimensions_and_zero_counts(self):
         set_seeds()
