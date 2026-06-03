@@ -92,7 +92,7 @@ class WordFeedForward(nn.Module):
         return x
 
 class AdaptiveMultiheadMaskedAttention(nn.Module):
-    def __init__(self, batch_size:int, mask_window_size, num_heads, full_size, embedding_size=386, eps=1e-8): #full_size - size of prompt before splitting the tokens into batches
+    def __init__(self, batch_size:int, full_size, mask_window_size, num_heads, embedding_size=386, eps=1e-8): #full_size - size of prompt before splitting the tokens into batches
         super().__init__()
         self.eps = eps
         self.mask_window_size = mask_window_size if mask_window_size < batch_size else batch_size//2
@@ -123,5 +123,13 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
         sentences = re.findall(r'[^.!?]*\.', prompt).strip()
         return np.mean([len(sentence) for sentence in sentences])
 
-    def
-        
+class BeliefsLayer(nn.Module):
+    def __init__(self, hidden_size, output_size, window_size=1, embedding_size=386, eps=1e-8):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.window_size = window_size
+        self.attention = nn.MultiheadAttention
+
+    def forward(self, x):
+
