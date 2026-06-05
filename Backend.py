@@ -3,7 +3,7 @@ from BytePairEncoder import BytePairEncoder
 import torch.nn as nn
 import torch as t
 import numpy as np
-from re import re.findall
+import re
 
 
 class Embedding(nn.Module):
@@ -120,10 +120,11 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
         return sentences
 
     def getMeanSentenceLength(self, prompt):
-        sentences = re.findall(r'[^.!?]*\.', prompt).strip()
+        sentences = [s.strip() for s in re.findall(r'[^.!?]*\.', prompt)]
         return np.mean([len(sentence) for sentence in sentences])
 
 class BeliefsLayer(nn.Module):
+    #Beliefs layer is a simple attention mechanism that is used to calculate beliefs of the agent.
     def __init__(self, hidden_size, output_size, window_size=1, embedding_size=386, eps=1e-8):
         super().__init__()
         self.hidden_size = hidden_size
@@ -132,4 +133,21 @@ class BeliefsLayer(nn.Module):
         self.attention = nn.MultiheadAttention
 
     def forward(self, x):
+        #Plan - run the entire prompt through standard attention and then apply Top-k algorithm to achieve the most significant neurons.
+        #Idea - beliefs = attention(x, x, x)
+        #         beliefs = 0.99*beliefs - (1-0.99)*topk(fed_tensor)
+        x = self.attention(x, x, x) #a starting tensor
+        def topk(x, k):
+            #x - tensor to be sorted
+            #k - number of top elements to be returned
+            values, indices = t.topk(x, k, dim=-1)
 
+            output = t.zeros_like(x)
+            output.scatter_(1, indices, values)
+
+            return output
+
+
+        a = 0.99
+        beliefs = t.mul(a,x) - (1-a)*topk(x, self.window_size) #Significance of window_size is determined by the size of the prompt
+        return beliefs
