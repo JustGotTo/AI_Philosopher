@@ -23,21 +23,26 @@ class TurboQuant(nn.Module):
         return x_rot, xmin, xmax
 
     def quantize(self, x):
-        x, xmin, xmax = self.rotate(x)
+        xrot = self.fwht(x)
+        amax = xrot.abs().max(
+            dim=-1,
+            keepdim=True
+        ).values
 
-        scale = (xmax - xmin).clamp(min=1e-8) / 15
-        quantized = t.round((x - xmin) / scale)
-        quantized = quantized.clamp(0,15)
-        return q.to(t.uint8), scale, xmin
+        scale = amax / 7
+
+        quantized = t.round(xrot / scale)
+        quantized = quantized.clamp(-7, 7)
+        return quantized.to(t.uint8), scale
 
     def dequantize(self,x):
-        quantized, scale, xmin = self.quantize(x)
+        quantized, scale = self.quantize(x)
 
         x_hat_rot = quantized.float() * scale + xmin
         x_hat = t.matmul(x_hat_rot, self.R.T)
         return x_hat
 
-def fwht(t):
+    def fwht(self, t):
 
 
 
