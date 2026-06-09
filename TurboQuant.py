@@ -13,6 +13,10 @@ class TurboQuant(nn.Module):
         self.hidden_size = int(hidden_size)
         self.embedding_dim = embedding_dim
         self.R = t.randn(hidden_size, hidden_size)
+        self.signs = t.randint(
+            0, 2,
+            (hidden_size,)
+        ).float() * 2 - 1
 
     def rotate(self, x):
         self.R, _ = t.linalg.qr(self.R)
@@ -23,26 +27,25 @@ class TurboQuant(nn.Module):
         return x_rot, xmin, xmax
 
     def quantize(self, x):
-        xrot = self.fwht(x)
-        amax = xrot.abs().max(
-            dim=-1,
-            keepdim=True
-        ).values
+        xrot, xmin, xmax = self.rotate(x)
 
-        scale = amax / 7
-
-        quantized = t.round(xrot / scale)
-        quantized = quantized.clamp(-7, 7)
-        return quantized.to(t.uint8), scale
+        scale = (xmax - xmin).clamp(min=1e-8) / 15
+        quantized = t.round((xrot - xmin) / scale)
+        quantized = quantized.clamp(0,15)
+        return quantized.to(t.uint8), scale, xmin
 
     def dequantize(self,x):
-        quantized, scale = self.quantize(x)
+        quantized, scale, xmin = self.quantize(x)
 
         x_hat_rot = quantized.float() * scale + xmin
         x_hat = t.matmul(x_hat_rot, self.R.T)
         return x_hat
 
-    def fwht(self, t):
+    def fwht(self, x):
+        h = 1
+
+        while h <
+
 
 
 
