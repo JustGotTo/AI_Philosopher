@@ -13,9 +13,9 @@ class TestIntegration(unittest.TestCase):
         torch.manual_seed(1234)
         cls.prompt = "This is a sample prompt for training the BPE tokenizer and testing integration."
         cls.vocab_size = 500
-        cls.embed_dim = 384
+        cls.embed_dim = 512
         cls.hidden_size = 512
-        cls.out_size = 384
+        cls.out_size = 512
         
         # Initialize BPE and train it with the prompt
         cls.bpe = BytePairEncoder(vocab_size=cls.vocab_size)
