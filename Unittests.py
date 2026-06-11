@@ -115,6 +115,32 @@ class TestBackendLayers(unittest.TestCase):
         self.assertEqual(tuple(y.shape), (batch, seq_len, out))
         self.assertLess(dt, TIME_BUDGET_SEC, f"PhraseFeedForward forward pass too slow: {dt:.4f}s")
 
+class TestTurboQuant(unittest.TestCase):
+    def test_turboquant_shape_and_accuracy(self):
+        set_seeds()
+        from PolarQuant import TurboQuant
+        hidden = 512 # Must be power of 2
+        batch, seq_len = 2, 8
+        x = torch.randn(batch, seq_len, hidden)
+        tq = TurboQuant(hidden_size=hidden)
+
+        t0 = time.perf_counter()
+        packed, scale, amax = tq.quantize(x)
+        x_hat = tq.dequantize()
+        dt = time.perf_counter() - t0
+
+        # Shape checks
+        # Packed is (batch, seq_len, hidden // 2) because it packs two 4-bit values into uint8
+        self.assertEqual(tuple(packed.shape), (batch, seq_len, hidden // 2))
+        self.assertEqual(tuple(x_hat.shape), (batch, seq_len, hidden))
+
+        # Accuracy check (around 97-98% as requested)
+        cos_sim = torch.nn.functional.cosine_similarity(x.flatten(), x_hat.flatten(), dim=0)
+        self.assertGreaterEqual(cos_sim.item(), 0.97, f"Cosine similarity too low: {cos_sim.item():.4f}")
+
+        # Performance check
+        self.assertLess(dt, TIME_BUDGET_SEC, f"TurboQuant cycle too slow: {dt:.4f}s")
+
 class TestAdaptiveMultiheadMaskedAttentionMask(unittest.TestCase):
     def test_create_mask_dimensions_and_zero_counts(self):
         set_seeds()

@@ -3,7 +3,7 @@ import torch
 import time
 from BytePairEncoder import BytePairEncoder
 from Backend import Embedding, AddNorm, LinearPostAttention, SentenceFeedForward, PhraseFeedForward
-from TurboQuant import TurboQuant
+from PolarQuant import TurboQuant
 
 TIME_BUDGET_SEC = 0.5
 
@@ -57,37 +57,40 @@ class TestIntegration(unittest.TestCase):
         """Test PhraseFeedForward -> AddNorm -> TurboQuant."""
         t0 = time.perf_counter()
         
-        batch, seq_len, hidden = 2, 10, 384
+        batch, seq_len, hidden = 2, 16, 512 # use 512 as it's power of 2
         x = torch.randn(batch, seq_len, hidden)
         
         # 1. PhraseFeedForward
         pff = PhraseFeedForward(hidden_size=hidden, output_size=hidden, shrinked_size=hidden//8)
-        x = pff.forward(x)
-        self.assertEqual(x.shape, (batch, seq_len, hidden))
+        x_pff = pff.forward(x)
+        self.assertEqual(x_pff.shape, (batch, seq_len, hidden))
+        
+        # Check for parameter conflicts (if any shared names or unexpected interactions)
+        # Here we just ensure we can create and run them independently without error
         
         # 2. AddNorm
         norm = AddNorm(hidden_size=hidden)
-        x = norm.forward(x, x)
-        self.assertEqual(x.shape, (batch, seq_len, hidden))
+        x_norm = norm.forward(x_pff, x_pff)
+        self.assertEqual(x_norm.shape, (batch, seq_len, hidden))
         
         # 3. LinearPostAttention
         lpa = LinearPostAttention(output_size=hidden)
-        x = lpa.forward(x)
-        self.assertEqual(x.shape, (batch, seq_len, hidden))
+        x_lpa = lpa.forward(x_norm)
+        self.assertEqual(x_lpa.shape, (batch, seq_len, hidden))
         
         # 4. TurboQuant (Quantization)
-        # TurboQuant(hidden_size, embedding_dim) - it uses these for rotation matrix R
-        # In rotate: R = t.randn(self.hidden_size, self.embedding_dim)
-        # x_rot = t.matmul(x, R)
-        # So x must have last dim = self.hidden_size.
-        tq = TurboQuant(hidden_size=hidden, embedding_dim=hidden)
-        # x shape is (batch, seq_len, hidden)
-        # TurboQuant.quantize expects x. x rotate does t.matmul(x, R)
-        # R is (hidden, hidden)
-        quantized, levels = tq.quantize(x)
+        tq = TurboQuant(hidden_size=hidden)
+        packed, scale, amax = tq.quantize(x_lpa)
         
-        # quantized shape should be (batch, seq_len, hidden)
-        self.assertEqual(quantized.shape, (batch, seq_len, hidden))
+        # Shape check (packed last dim is hidden // 2)
+        self.assertEqual(packed.shape, (batch, seq_len, hidden // 2))
+        
+        # 5. Dequantization and Accuracy check
+        x_hat = tq.dequantize()
+        self.assertEqual(x_hat.shape, (batch, seq_len, hidden))
+        
+        cos_sim = torch.nn.functional.cosine_similarity(x_lpa.flatten(), x_hat.flatten(), dim=0)
+        self.assertGreaterEqual(cos_sim.item(), 0.97, f"Integration quantization accuracy too low: {cos_sim.item():.4f}")
         
         dt = time.perf_counter() - t0
         self.assertLess(dt, TIME_BUDGET_SEC, f"Pipeline 2 too slow: {dt:.4f}s")

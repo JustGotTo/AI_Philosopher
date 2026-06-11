@@ -115,13 +115,18 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
         return mask
 
     def split_batch(self, x, prompt):
-        sentences = re.findall(r'[^.!?]*\.', prompt)
-        sentences = [k.strip() for k in sentences]
-        return sentences
+        mean_sentence_length = self.getMeanSentenceLength(prompt)
+
+        x = x[..., 0::mean_sentence_length] #dividing the tensor into chunks of mean_sentence_length tokens
+        return x
 
     def getMeanSentenceLength(self, prompt):
         sentences = [s.strip() for s in re.findall(r'[^.!?]*\.', prompt)]
         return np.mean([len(sentence) for sentence in sentences])
+
+
+    def forward(self):
+
 
 class BeliefsLayer(nn.Module):
     #Beliefs layer is a simple attention mechanism that is used to calculate beliefs of the agent.
