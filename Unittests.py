@@ -184,6 +184,44 @@ class TestAdaptiveMultiheadMaskedAttentionMask(unittest.TestCase):
         # Optional performance check
         self.assertLess(dt, TIME_BUDGET_SEC, f"createMask too slow: {dt:.4f}s")
 
+class TestAdaptiveMultiheadMaskedAttentionSplitBatch(unittest.TestCase):
+    def test_split_batch_equal_chunks_stride(self):
+        set_seeds()
+        from Backend import AdaptiveMultiheadMaskedAttention
+        from types import SimpleNamespace
+
+        # Prepare an input tensor whose last dimension length is an exact multiple of chunk size
+        batch, seq, features = 2, 3, 12
+        chunk_size = 3  # pretend mean sentence length
+        x = torch.arange(batch * seq * features, dtype=torch.float32).view(batch, seq, features)
+
+        # Build a dummy carrying only what split_batch needs
+        dummy = SimpleNamespace(
+            # Monkeypatch getMeanSentenceLength to return our desired integer chunk size
+            getMeanSentenceLength=lambda prompt: chunk_size
+        )
+
+        prompt = "xxx."  # content irrelevant due to monkeypatch
+
+        t0 = time.perf_counter()
+        y = AdaptiveMultiheadMaskedAttention.split_batch(dummy, x, prompt)
+        dt = time.perf_counter() - t0
+
+        # Expected behavior: take every `chunk_size`-th element along the last dim, starting at 0
+        expected = x[..., 0::chunk_size]
+
+        # Shape check: last dimension shrinks by factor of chunk_size
+        self.assertEqual(tuple(y.shape), (batch, seq, features // chunk_size))
+
+        # Value check: exactly equals the simple stride slice
+        self.assertTrue(torch.equal(y, expected), "split_batch should be equivalent to x[..., 0::chunk_size]")
+
+        # "Equal chunks" interpretation: with divisible length, the resulting last dim is uniform across batch and seq
+        self.assertTrue(all(d == features // chunk_size for d in y.shape[-1:]))
+
+        # Performance check
+        self.assertLess(dt, TIME_BUDGET_SEC, f"split_batch too slow: {dt:.4f}s")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
