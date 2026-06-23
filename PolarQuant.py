@@ -7,7 +7,7 @@ from torch import nn
 rot_random_seed = 1234
 seed(rot_random_seed)
 #ROLE of TurboQuant - Perform the quantization of data in 4 bits, spreading it in 16 different levels. It dramatically reduces the KV cache consumption, which is vital for my SLM.
-class TurboQuant(nn.Module):
+class PolarQuant(nn.Module):
     def __init__(self, hidden_size, embedding_dim=512):
         super().__init__()
         self.hidden_size = int(hidden_size)

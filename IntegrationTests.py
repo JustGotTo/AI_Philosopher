@@ -2,7 +2,10 @@ import unittest
 import torch
 import time
 from BytePairEncoder import BytePairEncoder
-from Backend import Embedding, AddNorm, LinearPostAttention, SentenceFeedForward, PhraseFeedForward
+from Backend import (
+    Embedding, AddNorm, LinearPostAttention, SentenceFeedForward, PhraseFeedForward,
+    AdaptiveMultiheadMaskedAttention, BeliefsLayer
+)
 from PolarQuant import TurboQuant
 
 TIME_BUDGET_SEC = 0.5
@@ -52,6 +55,40 @@ class TestIntegration(unittest.TestCase):
         
         dt = time.perf_counter() - t0
         self.assertLess(dt, TIME_BUDGET_SEC, f"Pipeline 1 too slow: {dt:.4f}s")
+
+    def test_attention_and_beliefs_pipeline(self):
+        """Test Embedding -> BeliefsLayer -> AdaptiveMultiheadMaskedAttention."""
+        t0 = time.perf_counter()
+        
+        batch, seq_len, embed_dim = 1, 64, 512
+        input_ids = torch.randint(0, self.vocab_size, (batch, seq_len))
+        
+        # 1. Embedding
+        embed_layer = Embedding(prompt=self.prompt, vocab_size=self.vocab_size, embedding_dim=embed_dim)
+        embedded = embed_layer.forward(input_ids)
+        
+        # 2. BeliefsLayer
+        beliefs_layer = BeliefsLayer(hidden_size=embed_dim, output_size=embed_dim, embedding_size=embed_dim)
+        beliefs = beliefs_layer.forward(embedded)
+        self.assertEqual(beliefs.shape, (batch, seq_len, embed_dim))
+
+        attention_layer = AdaptiveMultiheadMaskedAttention(
+            batch_size=16, 
+            full_size=seq_len, 
+            mask_window_size=8, 
+            embedding_size=embed_dim
+        )
+        
+        # pass embedded[0] to match (seq_len, embed_dim)
+        output = attention_layer.forward(embedded[0])
+        
+        # Output shape is (seq_len, dph * num_chunks) or similar depending on implementation
+        # In our fixed implementation, it's concatenated heads: (seq_len, dph)
+        self.assertEqual(output.dim(), 2)
+        self.assertEqual(output.shape[0], seq_len)
+        
+        dt = time.perf_counter() - t0
+        self.assertLess(dt, TIME_BUDGET_SEC, f"Attention pipeline too slow: {dt:.4f}s")
 
     def test_phrase_ff_and_quantization(self):
         """Test PhraseFeedForward -> AddNorm -> TurboQuant."""

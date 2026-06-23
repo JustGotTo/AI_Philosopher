@@ -11,6 +11,8 @@ from Backend import (
     LinearPostAttention,
     SentenceFeedForward,
     PhraseFeedForward,
+    AdaptiveMultiheadMaskedAttention,
+    BeliefsLayer,
 )
 
 
@@ -115,6 +117,42 @@ class TestBackendLayers(unittest.TestCase):
         self.assertEqual(tuple(y.shape), (batch, seq_len, out))
         self.assertLess(dt, TIME_BUDGET_SEC, f"PhraseFeedForward forward pass too slow: {dt:.4f}s")
 
+    def test_beliefs_layer_shape_and_time(self):
+        set_seeds()
+        batch, seq_len, embed_dim = 4, 16, 64
+        x = torch.randn(batch, seq_len, embed_dim)
+        layer = BeliefsLayer(hidden_size=embed_dim, output_size=embed_dim, embedding_size=embed_dim)
+
+        t0 = time.perf_counter()
+        y = layer.forward(x)
+        dt = time.perf_counter() - t0
+
+        self.assertEqual(tuple(y.shape), (batch, seq_len, embed_dim))
+        self.assertLess(dt, TIME_BUDGET_SEC, f"BeliefsLayer forward pass too slow: {dt:.4f}s")
+
+    def test_adaptive_multihead_masked_attention_forward_shape_and_time(self):
+        set_seeds()
+        seq_len, embed_dim = 128, 512
+        x = torch.randn(seq_len, embed_dim)
+        layer = AdaptiveMultiheadMaskedAttention(
+            batch_size=16, 
+            full_size=seq_len, 
+            mask_window_size=8, 
+            embedding_size=embed_dim
+        )
+
+        t0 = time.perf_counter()
+        y = layer.forward(x)
+        dt = time.perf_counter() - t0
+
+        # Based on our implementation, it concatenates results from chunks.
+        # split_batch with chunk_size=256 and seq_len=64 will produce 1 chunk of 64 tokens.
+        # Each chunk forward produces seq_len tokens.
+        self.assertEqual(y.dim(), 2)
+        self.assertEqual(y.shape[0], seq_len)
+        self.assertLess(dt, TIME_BUDGET_SEC, f"AdaptiveMultiheadMaskedAttention forward pass too slow: {dt:.4f}s")
+        print(y.shape)
+
 class TestTurboQuant(unittest.TestCase):
     def test_turboquant_shape_and_accuracy(self):
         set_seeds()
@@ -190,10 +228,10 @@ class TestAdaptiveMultiheadMaskedAttentionSplitBatch(unittest.TestCase):
         from Backend import AdaptiveMultiheadMaskedAttention
         from types import SimpleNamespace
 
-        # Prepare an input tensor whose last dimension length is an exact multiple of chunk size
-        batch, seq, features = 2, 3, 12
-        chunk_size = 3  # pretend mean sentence length
-        x = torch.arange(batch * seq * features, dtype=torch.float32).view(batch, seq, features)
+        # Prepare an input tensor: (seq, features)
+        seq, features = 12, 12
+        chunk_size = 3  
+        x = torch.randn(seq, features)
 
         # Build a dummy carrying only what split_batch needs
         dummy = SimpleNamespace(
@@ -204,20 +242,15 @@ class TestAdaptiveMultiheadMaskedAttentionSplitBatch(unittest.TestCase):
         prompt = "xxx."  # content irrelevant due to monkeypatch
 
         t0 = time.perf_counter()
-        y = AdaptiveMultiheadMaskedAttention.split_batch(dummy, x, prompt)
+        y = AdaptiveMultiheadMaskedAttention.split_batch(dummy, x, prompt, chunk_size=chunk_size, sliding_window=0)
         dt = time.perf_counter() - t0
 
-        # Expected behavior: take every `chunk_size`-th element along the last dim, starting at 0
-        expected = x[..., 0::chunk_size]
-
-        # Shape check: last dimension shrinks by factor of chunk_size
-        self.assertEqual(tuple(y.shape), (batch, seq, features // chunk_size))
-
-        # Value check: exactly equals the simple stride slice
-        self.assertTrue(torch.equal(y, expected), "split_batch should be equivalent to x[..., 0::chunk_size]")
-
-        # "Equal chunks" interpretation: with divisible length, the resulting last dim is uniform across batch and seq
-        self.assertTrue(all(d == features // chunk_size for d in y.shape[-1:]))
+        # y is a list of chunks
+        self.assertIsInstance(y, list)
+        self.assertEqual(len(y), seq // chunk_size)
+        
+        # Check first chunk shape
+        self.assertEqual(y[0].shape, (chunk_size, features))
 
         # Performance check
         self.assertLess(dt, TIME_BUDGET_SEC, f"split_batch too slow: {dt:.4f}s")
