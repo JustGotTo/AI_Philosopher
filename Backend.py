@@ -7,7 +7,7 @@ import re
 
 
 class Embedding(nn.Module):
-    def __init__(self, prompt, vocab_size=1000, embedding_dim=512):
+    def __init__(self, prompt, vocab_size=25000, embedding_dim=512):
         super().__init__()
         self.prompt = BytePairEncoder(prompt=prompt).forward(prompt)
         self.embedding_dim = embedding_dim #same as input_dim
