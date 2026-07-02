@@ -31,9 +31,8 @@ class AddNorm(nn.Module):
 
 
 class LinearPostAttention(nn.Module):
-    def __init__(self, output_size, eps=1e-8):
+    def __init__(self, output_size):
         super().__init__()
-        self.eps = eps
         self.weight = nn.Parameter(t.ones(output_size)*0.9)
         self.bias = nn.Parameter(t.zeros(output_size))
 
@@ -56,11 +55,10 @@ class SentenceFeedForward(nn.Module):
         return x
 
 class PhraseFeedForward(nn.Module):
-    def __init__(self, hidden_size, output_size, shrinked_size):
+    def __init__(self, hidden_size, output_size):
         super().__init__()
-        self.shrinked_size = hidden_size//8
         self.linear1 = nn.Linear(hidden_size, output_size)
-        self.linear2 = nn.Linear(hidden_size, shrinked_size)
+        self.linear2 = nn.Linear(hidden_size, hidden_size)
         self.norm = AddNorm(output_size)
         self.act = nn.GELU()
         self.dropout = nn.Dropout(0.2)
@@ -74,10 +72,9 @@ class PhraseFeedForward(nn.Module):
         return x
 
 class WordFeedForward(nn.Module):
-    def __init__(self, hidden_size, output_size, shrinked_size):
+    def __init__(self, output_size, hidden_size):
         super().__init__()
-        self.shrinked_size = shrinked_size
-        self.linear1 = nn.Linear(shrinked_size, hidden_size)
+        self.linear1 = nn.Linear(hidden_size, hidden_size)
         self.linear2 = nn.Linear(hidden_size, output_size)
         self.norm = AddNorm(output_size)
         self.act = nn.GELU()
@@ -100,9 +97,12 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
         if self.num_heads == 0: self.num_heads = 1
         self.batch_size = batch_size
         self.t_beliefs = BeliefsLayer(full_size, embedding_size, window_size=self.mask_window_size, embedding_size=embedding_size)
-        self.t_context = AddNorm(self.embedding_size) #tensor for context
         self.mask = self.createMask() #creates a mask of the batch_size x batch_size matrix
         self.prompt = prompt
+
+        self.Q = t.randn((self.hidden_size, self.embedding_size))
+        self.K = t.randn((self.hidden_size, self.embedding_size))
+        self.V = t.randn((self.hidden_size, self.embedding_size))
 
     def createMask(self):
         mask = t.ones(self.batch_size, self.batch_size)
@@ -140,29 +140,30 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
         sentences = [s.strip() for s in re.findall(r'[^.!?]*\.', prompt)]
         return np.mean([len(sentence) for sentence in sentences])
 
+    def split_heads(self, x):
+        self.Q, self.K, self.V, self.t_beliefs = nn.Linear(x.shape[1], x.shape[1]*3).chunk(3, dim=-1) #Splitting x into 3 chunks of equal size
+        self.Q = nn.Parameter(self.Q.reshape((self.hidden_size, self.embedding_size)))
+        self.K = nn.Parameter(self.K.reshape((self.hidden_size, self.embedding_size)))
+        self.V = nn.Parameter(self.V.reshape((self.hidden_size, self.embedding_size)))
 
-    def forward(self, x):
-        x_chunks = self.split_batch(x, self.prompt) #Splitting prompt into chunks
+    def forward(self,x):
+        x_chunks = self.split_batch(x) #Splitting prompt into chunks
         num_heads = self.num_heads
         dph = self.embedding_size//num_heads #dims per head
 
-        device = x.device
-        w_q = nn.Parameter(t.randn(self.embedding_size, dph, device=device))
-        w_k = nn.Parameter(t.randn(self.embedding_size, dph, device=device))
-        w_v = nn.Parameter(t.randn(self.embedding_size, dph, device=device))
-        w_b = nn.Parameter(t.randn(self.embedding_size, dph, device=device))
-        
+        device = "cuda"
+        #Problem of redefining the Q,K,V and B weights was solved by passing the existing weights into forward pass
         all_results = []
 
         for chunk in x_chunks:
             if chunk.dim() == 3:
                 chunk = chunk.squeeze(0)
             
-            chunk_beliefs = self.t_beliefs(chunk.unsqueeze(0)).squeeze(0) # beliefs in the chunk
-            Q = t.matmul(chunk, w_q)
-            K = t.matmul(chunk, w_k)
-            V = t.matmul(chunk, w_v)
-            B = t.matmul(chunk_beliefs, w_b)
+            B = self.t_beliefs(chunk.unsqueeze(0)).squeeze(0) # beliefs in the chunk
+            self.split_heads(chunk)
+            Q = self.Q
+            K = self.K
+            V = self.V
 
             mask = self.mask
             if mask.shape[0] < V.shape[0]:
