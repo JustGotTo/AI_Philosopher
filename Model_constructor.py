@@ -6,6 +6,7 @@ from PolarQuant import PolarQuant
 
 import torch.nn as nn
 import torch as t
+import re
 
 class Decoder(nn.Module):
     def __init__(self, hidden_size, embedding_dim, eps, vocab_size=25000, prompt=""):
@@ -24,26 +25,29 @@ class Decoder(nn.Module):
         self.eps = eps
         self.hidden_size = hidden_size
         self.embedding_dim = embedding_dim
+        self.sentences = [s.strip() for s in re.findall(r'[^.!?]*\.', self.prompt)]
 
     def forward(self, x):
         """Upon entering the forward pass, x is a list of encoded tokens with embeddings"""
         #3 level Hierarchial attention
-
-        #First applying sentence-level attention:
-        x = self.addnorm.forward(x,x)  # Normalisation before attention layer
-        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=25, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
-        x = self.linear.forward(x)
-        x = self.feedforward.forward(x)
-        #Phrase-level attention
-        x = self.addnorm.forward(x, x)
-        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=5, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
-        x = self.linear.forward(x)
-        x = self.phrasefeed.forward(x)
-        #Word-level attention
-        x = self.addnorm.forward(x, x)
-        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=1, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
-        x = self.linear.forward(x)
-        x = self.wordfeed.forward(x)
+        for s in self.sentences:
+            slen = len(s.strip().split())
+            #First applying sentence-level attention:
+            #DO: complete the adaptive step
+            x = self.addnorm.forward(x,x)  # Normalisation before attention layer
+            x = AdaptiveMultiheadMaskedAttention(batch_size=slen*2, full_size=x.shape[1], mask_window_size=slen, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
+            x = self.linear.forward(x)
+            x = self.feedforward.forward(x)
+            #Phrase-level attention
+            x = self.addnorm.forward(x, x)
+            x = AdaptiveMultiheadMaskedAttention(batch_size=slen*2, full_size=x.shape[1], mask_window_size=slen//3, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
+            x = self.linear.forward(x)
+            x = self.phrasefeed.forward(x)
+            #Word-level attention
+            x = self.addnorm.forward(x, x)
+            x = AdaptiveMultiheadMaskedAttention(batch_size=slen*2, full_size=x.shape[1], mask_window_size=1, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
+            x = self.linear.forward(x)
+            x = self.wordfeed.forward(x)
 
         return x
 
@@ -54,13 +58,16 @@ class SLModel(nn.Module):
         self.encoder = BytePairEncoder(prompt=prompt, vocab_size=vocab_size, input_size=embedding_dim, hidden_size=hidden_size, output_size=hidden_size)
         self.embedding = Embedding(prompt=prompt, vocab_size=vocab_size, embedding_dim=embedding_dim)
         self.quant = PolarQuant(hidden_size=hidden_size)
-        self.model = nn.ModuleList([Decoder(hidden_size=hidden_size, embedding_dim=embedding_dim, eps=self.eps) for _ in range(5)])
+        self.model = nn.ModuleList([Decoder(hidden_size=hidden_size, embedding_dim=embedding_dim, eps=self.eps) for _ in range(6)])
 
     def forward(self, x):
         x = self.encoder.forward(x)
         x = self.embedding.forward(x)
         x = self.quant.quantize(x)
-        x = self.model(x)
+
+        for elem in self.model:
+            x = elem(x)
+
         x = self.quant.dequantize()
 
         return x

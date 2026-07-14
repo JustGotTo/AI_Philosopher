@@ -3,7 +3,6 @@ from BytePairEncoder import BytePairEncoder
 import torch.nn as nn
 import torch as t
 import numpy as np
-import re
 
 
 class Embedding(nn.Module):
@@ -136,9 +135,6 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
 
         return chunks
 
-    def getMeanSentenceLength(self, prompt):
-        sentences = [s.strip() for s in re.findall(r'[^.!?]*\.', prompt)]
-        return np.mean([len(sentence) for sentence in sentences])
 
     def split_heads(self, x):
         self.Q, self.K, self.V, self.t_beliefs = nn.Linear(x.shape[1], x.shape[1]*3).chunk(3, dim=-1) #Splitting x into 3 chunks of equal size
