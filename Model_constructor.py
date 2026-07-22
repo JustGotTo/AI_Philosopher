@@ -33,13 +33,14 @@ class Decoder(nn.Module):
         #3 level Hierarchial attention
         #First applying sentence-level attention:
         #DO: complete the adaptive step
+
         x = self.addnorm.forward(x,x)  # Normalisation before attention layer
-        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=20, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
+        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=((2**len(self.sentences))%33), embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
         x = self.linear.forward(x)
         x = self.feedforward.forward(x)
         #Phrase-level attention
         x = self.addnorm.forward(x, x)
-        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=5, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
+        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=(2**len(self.sentences))%15, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
         x = self.linear.forward(x)
         x = self.phrasefeed.forward(x)
         #Word-level attention
@@ -73,17 +74,19 @@ class SLModel(nn.Module):
 
         x = self.quant.dequantize()
 
+        x = nn.Linear(int(self.embedding_dim), int(self.hidden_size))
+
         return x
 
     @t.no_grad()
-    def generate(self, x):
+    def generate(self, input_ids, device=None):
+        if device is None:
+            input_ids = input_ids.device
+
         vocab = BytePairEncoder.vocab
-        output = self.forward(x)
-        for
-def floor_pow_two(n): #Prints the largest power of two that the n is bigger than
-    power = 0
-    while n > 0:
-        power += 1
-        n //= 2
-        if n == 1:
-            return power
+        output = self.forward(input_ids)
+        text_output = ""
+        for id in output.shape[0]:
+            text_output += vocab.ito[id] + " "
+
+        return text_output

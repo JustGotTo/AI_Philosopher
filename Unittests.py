@@ -106,9 +106,9 @@ class TestBackendLayers(unittest.TestCase):
 
     def test_phrase_feed_forward_shape_and_time(self):
         set_seeds()
-        batch, seq_len, hidden, out, shrink = 4, 16, 64, 32, 16
+        batch, seq_len, hidden, out = 4, 16, 64, 32
         x = torch.randn(batch, seq_len, hidden)
-        layer = PhraseFeedForward(hidden_size=hidden, output_size=out, shrinked_size=shrink)
+        layer = PhraseFeedForward(hidden_size=hidden, output_size=out)
 
         t0 = time.perf_counter()
         y = layer.forward(x)
@@ -156,11 +156,11 @@ class TestBackendLayers(unittest.TestCase):
 class TestTurboQuant(unittest.TestCase):
     def test_turboquant_shape_and_accuracy(self):
         set_seeds()
-        from PolarQuant import TurboQuant
+        from PolarQuant import PolarQuant
         hidden = 512 # Must be power of 2
         batch, seq_len = 2, 8
         x = torch.randn(batch, seq_len, hidden)
-        tq = TurboQuant(hidden_size=hidden)
+        tq = PolarQuant(hidden_size=hidden)
 
         t0 = time.perf_counter()
         packed, scale, amax = tq.quantize(x)

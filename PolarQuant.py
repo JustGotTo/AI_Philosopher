@@ -82,7 +82,7 @@ class PolarQuant(nn.Module):
             b = x[:, :, 1, :]
             x = t.stack([a + b, a - b], dim=2)
             h *= 2
-        return (x.reshape(shape) / np.sqrt(d))
+        return x.reshape(shape) / np.sqrt(d)
 
 if __name__ == "__main__":
     pass
