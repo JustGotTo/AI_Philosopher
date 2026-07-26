@@ -11,6 +11,7 @@ from Backend import (
     LinearPostAttention,
     SentenceFeedForward,
     PhraseFeedForward,
+    WordFeedForward,
     AdaptiveMultiheadMaskedAttention,
     BeliefsLayer,
 )
@@ -116,6 +117,19 @@ class TestBackendLayers(unittest.TestCase):
 
         self.assertEqual(tuple(y.shape), (batch, seq_len, out))
         self.assertLess(dt, TIME_BUDGET_SEC, f"PhraseFeedForward forward pass too slow: {dt:.4f}s")
+
+    def test_word_feed_forward_shape_and_time(self):
+        set_seeds()
+        batch, seq_len, hidden, out = 4, 16, 64, 48
+        x = torch.randn(batch, seq_len, hidden)
+        layer = WordFeedForward(hidden_size=hidden, output_size=out)
+
+        t0 = time.perf_counter()
+        y = layer.forward(x)
+        dt = time.perf_counter() - t0
+
+        self.assertEqual(tuple(y.shape), (batch, seq_len, out))
+        self.assertLess(dt, TIME_BUDGET_SEC, f"WordFeedForward forward pass too slow: {dt:.4f}s")
 
     def test_beliefs_layer_shape_and_time(self):
         set_seeds()

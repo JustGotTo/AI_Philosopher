@@ -64,7 +64,7 @@ class SLModel(nn.Module):
     def forward(self, x, device=None):
         if device is None:
             device = next(self.parameters()).device
-
+        # We feed in the prompt, which is then converted to tokens by the system
         x = self.encoder.forward(x)
         x = self.embedding.forward(x)
         x = self.quant.quantize(x)

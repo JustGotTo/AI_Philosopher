@@ -6,7 +6,7 @@ from Backend import (
     Embedding, AddNorm, LinearPostAttention, SentenceFeedForward, PhraseFeedForward,
     AdaptiveMultiheadMaskedAttention, BeliefsLayer
 )
-from PolarQuant import TurboQuant
+from PolarQuant import PolarQuant
 
 TIME_BUDGET_SEC = 0.5
 
@@ -98,7 +98,7 @@ class TestIntegration(unittest.TestCase):
         x = torch.randn(batch, seq_len, hidden)
         
         # 1. PhraseFeedForward
-        pff = PhraseFeedForward(hidden_size=hidden, output_size=hidden, shrinked_size=hidden//8)
+        pff = PhraseFeedForward(hidden_size=hidden, output_size=hidden)
         x_pff = pff.forward(x)
         self.assertEqual(x_pff.shape, (batch, seq_len, hidden))
         
@@ -115,8 +115,8 @@ class TestIntegration(unittest.TestCase):
         x_lpa = lpa.forward(x_norm)
         self.assertEqual(x_lpa.shape, (batch, seq_len, hidden))
         
-        # 4. TurboQuant (Quantization)
-        tq = TurboQuant(hidden_size=hidden)
+        # 4. PolarQuant (Quantization)
+        tq = PolarQuant(hidden_size=hidden)
         packed, scale, amax = tq.quantize(x_lpa)
         
         # Shape check (packed last dim is hidden // 2)

@@ -123,13 +123,3 @@ class BytePairEncoder(nn.Module):
 
     def forward(self, prompt):
         return self.tokenize(prompt)
-
-
-class SLModel(nn.Module):
-    def __init__(self, prompt, enable_encoder=True, layers=3, vocab_size=50000):
-        super().__init__()
-        self.prompt = prompt
-        self.vocab_size = vocab_size
-        self.layers = layers
-        self.enable_encoder = enable_encoder
-        self.encoder = BytePairEncoder(vocab_size=self.vocab_size, prompt="")
