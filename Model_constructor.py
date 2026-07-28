@@ -79,12 +79,12 @@ class SLModel(nn.Module):
         return x
 
     @t.no_grad()
-    def generate(self, input_ids, device=None):
+    def generate(self, input_text, device=None):
         if device is None:
-            input_ids = input_ids.device
+            input_ids = input_text.device
 
         vocab = BytePairEncoder.vocab
-        output = self.forward(input_ids)
+        output = self.forward(input_text)
         text_output = ""
         for id in output.shape[0]:
             text_output += vocab.ito[id] + " "
