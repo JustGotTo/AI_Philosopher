@@ -18,7 +18,6 @@ class Decoder(nn.Module):
         self.embedding_dim = embedding_dim
         self.sentences = [s.strip() for s in re.findall(r'[^.!?]*\.', self.prompt)]
 
-        self.embedding = Embedding(prompt=prompt, vocab_size=vocab_size, embedding_dim=embedding_dim)
         self.linear = LinearPostAttention(output_size=embedding_dim)
         self.addnorm = AddNorm(embedding_dim, eps=self.eps)
         self.feedforward = SentenceFeedForward(hidden_size=hidden_size, output_size=hidden_size)
@@ -52,10 +51,10 @@ class Decoder(nn.Module):
         return x
 
 class SLModel(nn.Module):
-    def __init__(self, hidden_size, embedding_dim, vocab_size=25000, prompt=""):
+    def __init__(self, hidden_size, embedding_dim, vocab_size=100000, prompt=""):
         super().__init__()
         self.eps = 1e-6
-        self.encoder = BytePairEncoder(prompt=prompt, vocab_size=vocab_size, input_size=embedding_dim, hidden_size=hidden_size, output_size=hidden_size)
+        self.encoder = BytePairEncoder(prompt=prompt, vocab_size=vocab_size)
         self.embedding = Embedding(prompt=prompt, vocab_size=vocab_size, embedding_dim=embedding_dim)
         self.quant = PolarQuant(hidden_size=hidden_size)
         self.model = nn.ModuleList([Decoder(hidden_size=hidden_size, embedding_dim=embedding_dim, eps=self.eps) for _ in range(6)])
@@ -65,7 +64,6 @@ class SLModel(nn.Module):
         if device is None:
             device = next(self.parameters()).device
         # We feed in the prompt, which is then converted to tokens by the system
-        x = self.encoder.forward(x)
         x = self.embedding.forward(x)
         x = self.quant.quantize(x)
 
@@ -83,7 +81,7 @@ class SLModel(nn.Module):
         if device is None:
             input_ids = input_text.device
 
-        vocab = BytePairEncoder.vocab
+        vocab = self.encoder.vocab
         output = self.forward(input_text)
         text_output = ""
         for id in output.shape[0]:

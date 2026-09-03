@@ -6,7 +6,7 @@ import numpy as np
 
 
 class Embedding(nn.Module):
-    def __init__(self, prompt, vocab_size=25000, embedding_dim=512):
+    def __init__(self, prompt, vocab_size=100000, embedding_dim=512):
         super().__init__()
         self.prompt = BytePairEncoder(prompt=prompt).forward(prompt)
         self.embedding_dim = embedding_dim #same as input_dim
@@ -96,14 +96,14 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
         if self.num_heads == 0: self.num_heads = 1
         self.batch_size = batch_size
         self.t_beliefs = BeliefsLayer(full_size, embedding_size, window_size=self.mask_window_size, embedding_size=embedding_size)
-        self.mask = self.createMask() #creates a mask of the batch_size x batch_size matrix
+        self.mask = self.create_mask() #creates a mask of the batch_size x batch_size matrix
         self.prompt = prompt
 
-        self.Q = t.randn((self.hidden_size, self.embedding_size))
-        self.K = t.randn((self.hidden_size, self.embedding_size))
-        self.V = t.randn((self.hidden_size, self.embedding_size))
+        self.Q = t.randn((self.full_size, self.embedding_size))
+        self.K = t.randn((self.full_size, self.embedding_size))
+        self.V = t.randn((self.full_size, self.embedding_size))
 
-    def createMask(self):
+    def create_mask(self):
         mask = t.ones(self.batch_size, self.batch_size)
 
         window_size = min(self.mask_window_size, self.batch_size)
@@ -115,7 +115,7 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
 
         return mask
 
-    def split_batch(self, x, chunk_size=256, sliding_window=64):
+    def split_batch(self, x, prompt=None, chunk_size=None, sliding_window=64):
         # x shape: (seq_len, embedding_size) or (batch, seq_len, embedding_size)
         if x.dim() == 3:
             x = x.view(-1, x.shape[-1])
@@ -138,9 +138,9 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
 
     def split_heads(self, x):
         self.Q, self.K, self.V, self.t_beliefs = nn.Linear(x.shape[1], x.shape[1]*3).chunk(3, dim=-1) #Splitting x into 3 chunks of equal size
-        self.Q = nn.Parameter(self.Q.reshape((self.hidden_size, self.embedding_size)))
-        self.K = nn.Parameter(self.K.reshape((self.hidden_size, self.embedding_size)))
-        self.V = nn.Parameter(self.V.reshape((self.hidden_size, self.embedding_size)))
+        self.Q = nn.Parameter(self.Q.reshape((self.full_size, self.embedding_size)))
+        self.K = nn.Parameter(self.K.reshape((self.full_size, self.embedding_size)))
+        self.V = nn.Parameter(self.V.reshape((self.full_size, self.embedding_size)))
 
     def forward(self,x):
         x_chunks = self.split_batch(x) #Splitting prompt into chunks

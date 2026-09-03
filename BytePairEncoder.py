@@ -3,7 +3,7 @@ import re
 
 
 class BytePairEncoder(nn.Module):
-    def __init__(self, prompt="", vocab_size=25000):
+    def __init__(self, prompt="", vocab_size=100000):
         super().__init__()
         self.prompt = prompt
         self.vocab_size = vocab_size

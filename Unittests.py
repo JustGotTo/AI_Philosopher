@@ -150,7 +150,7 @@ class TestBackendLayers(unittest.TestCase):
         x = torch.randn(seq_len, embed_dim)
         layer = AdaptiveMultiheadMaskedAttention(
             batch_size=16, 
-            full_size=seq_len, 
+            full_size=seq_len,
             mask_window_size=8, 
             embedding_size=embed_dim
         )
