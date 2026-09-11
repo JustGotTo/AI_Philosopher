@@ -1,5 +1,9 @@
 from datasets import load_dataset
 import torch as t
+import os
+
+os.environ.setdefault("PYTORCH_ALLOC_CONF", "expandable_segments:True,max_split_size_mb:10000")
+
 from tensorboard.compat.tensorflow_stub.errors import OutOfRangeError
 
 from Backend_construct.Model_constructor import SLModel
@@ -38,8 +42,6 @@ def create_mask(batch_size: int, mask_window_size):
 
     return mask
 
-if t.cuda.is_available():
-    model.cuda()
 
 if __name__ == "__main__":
     print("Training started...")
@@ -50,7 +52,7 @@ for sample in data:
 
     #tokenizing the text sample
     tokens = model.encoder.tokenize(phrase)
-    token_ids = t.tensor(tokens, device=device, dtype=t.long)
+    token_ids = t.tensor(tokens, device=device, dtype=t.long).to(device)
     for mask_size in (20, 5, 1):
 
         mask = create_mask(token_ids.shape[0], mask_size).to(device)

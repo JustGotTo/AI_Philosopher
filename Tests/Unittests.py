@@ -144,6 +144,47 @@ class TestBackendLayers(unittest.TestCase):
         self.assertEqual(tuple(y.shape), (batch, seq_len, embed_dim))
         self.assertLess(dt, TIME_BUDGET_SEC, f"BeliefsLayer forward pass too slow: {dt:.4f}s")
 
+class TestBeliefsLayer(unittest.TestCase):
+        def setUp(self):
+                self.hidden_size = 128
+                self.output_size = 64
+                self.window_size = 3
+                self.embedding_size = 512
+                self.layer = BeliefsLayer(
+                    hidden_size=self.hidden_size,
+                    output_size=self.output_size,
+                    window_size=self.window_size,
+                    embedding_size=self.embedding_size
+                )
+
+        def test_beliefs_layer_forward_shape(self):
+                batch_size = 2
+                seq_len = 5
+                input_tensor = torch.rand((batch_size, seq_len, self.embedding_size))
+                result = self.layer(input_tensor)
+                self.assertEqual(result.shape, input_tensor.shape)
+
+        def test_beliefs_layer_forward_values(self):
+                batch_size = 2
+                seq_len = 5
+                input_tensor = torch.rand((batch_size, seq_len, self.embedding_size))
+                result = self.layer(input_tensor)
+                self.assertTrue(torch.all(result >= 0).item())  # Assuming there are no negative values in the output.
+
+        def test_beliefs_layer_window_size_effect(self):
+                batch_size = 2
+                seq_len = 5
+                input_tensor = torch.rand((batch_size, seq_len, self.embedding_size))
+
+                self.layer.window_size = 1
+                result_1 = self.layer(input_tensor)
+
+                self.layer.window_size = 5
+                result_5 = self.layer(input_tensor)
+
+                self.assertFalse(torch.equal(result_1, result_5))
+
+
     def test_adaptive_multihead_masked_attention_forward_shape_and_time(self):
         set_seeds()
         seq_len, embed_dim = 128, 512

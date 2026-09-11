@@ -2,7 +2,7 @@ from Backend_construct.Backend import Embedding, AddNorm, WordFeedForward
 from Backend_construct.Backend import LinearPostAttention, SentenceFeedForward, PhraseFeedForward, AdaptiveMultiheadMaskedAttention
 from Backend_construct.BytePairEncoder import BytePairEncoder
 
-from PolarQuant import PolarQuant
+from Backend_construct.PolarQuant import PolarQuant
 
 import torch.nn as nn
 import torch as t
@@ -23,6 +23,7 @@ class Decoder(nn.Module):
         self.feedforward = SentenceFeedForward(hidden_size=hidden_size, output_size=hidden_size)
         self.wordfeed = WordFeedForward(hidden_size=hidden_size, output_size=embedding_dim)
         self.phrasefeed = PhraseFeedForward(hidden_size=hidden_size, output_size=embedding_dim)
+        self.HAMMA = AdaptiveMultiheadMaskedAttention(batch_size=256, full_size=embedding_dim, mask_window_size=1, embedding_size=embedding_dim, prompt=prompt)  # CRASH RISK (inside): BeliefsLayer uses nn.MultiheadAttention with num_heads=8; embedding_dim must be divisible by 8, else it raises. Also HAMMA.create_mask() requires a 'device' arg at init but is called without it in Backend — TypeError.
         #Attention will be called individually in the forward pass, in order to adjust the mask window size and batch size to create hierarchial style attention.
         #Beliefs layer is applied internally so no need to call it.
 
@@ -34,17 +35,17 @@ class Decoder(nn.Module):
         #DO: complete the adaptive step
 
         x = self.addnorm.forward(x,x)  # Normalisation before attention layer
-        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=((2**len(self.sentences))%33), embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
+        x = self.HAMMA.forward(x,mask_window_size=(2**len(self.sentences))%33)
         x = self.linear.forward(x)
         x = self.feedforward.forward(x)
         #Phrase-level attention
         x = self.addnorm.forward(x, x)
-        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=(2**len(self.sentences))%15, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
+        x = self.HAMMA.forward(x,mask_window_size=(2**len(self.sentences))%15)
         x = self.linear.forward(x)
         x = self.phrasefeed.forward(x)
         #Word-level attention
         x = self.addnorm.forward(x, x)
-        x = AdaptiveMultiheadMaskedAttention(batch_size=128, full_size=x.shape[1], mask_window_size=1, embedding_size=self.embedding_dim, prompt=self.prompt).forward(x)
+        x = self.HAMMA.forward(x)
         x = self.linear.forward(x)
         x = self.wordfeed.forward(x)
 
