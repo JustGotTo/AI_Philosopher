@@ -1,11 +1,8 @@
 from datasets import load_dataset
-import pyarrow as pa
-import pandas as pd
 import torch as t
 from tensorboard.compat.tensorflow_stub.errors import OutOfRangeError
-from Backend import AdaptiveMultiheadMaskedAttention
 
-from Model_constructor import SLModel
+from Backend_construct.Model_constructor import SLModel
 
 data = load_dataset("HuggingFaceFW/fineweb-edu",
                     name="sample-10BT",
@@ -41,24 +38,48 @@ def create_mask(batch_size: int, mask_window_size):
 
     return mask
 
+if t.cuda.is_available():
+    model.cuda()
+
+if __name__ == "__main__":
+    print("Training started...")
+
 for sample in data:
 
     phrase = sample["text"]
 
     #tokenizing the text sample
     tokens = model.encoder.tokenize(phrase)
-    tokens = t.tensor([tokens for i in range(tokens)], dtype=t.long).to(device) #Creates tensor of size (len(tokens), len(tokens)), effectively making a matrix
+    token_ids = t.tensor(tokens, device=device, dtype=t.long)
     for mask_size in (20, 5, 1):
-        mask = create_mask(tokens.shape[0], mask_size)
+
+        mask = create_mask(token_ids.shape[0], mask_size).to(device)
+
         for i in range(0, len(tokens), mask_size):
+
+            token_curr = token_ids.clone()
+            mask_positions = t.zeros(
+                token_ids.shape,
+                dtype=t.bool,
+                device=device
+            )
+
             try:
-                token
+                token_curr[i:i + mask_size] = 0 #Making a token list with some masked tokens
+                #Masked output = token_curr, full output = token_ids.
+                mask_positions[i:i + mask_size] = True
+
             except OutOfRangeError:
+                print(f"mask_size={mask_size} is too large for the current sequence length.")
+                token_curr[i:] = 0
+                mask_positions[i:] = True
                 break
 
-    loss = fn_loss(model(token_ids), tokens)
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+            prediction = model(token_curr)
+            loss = fn_loss(prediction[mask_positions], token_ids[mask_positions])
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            print(f"mask_size={mask_size} loss: {loss.item()}")
     print(f"loss: {loss.item()}")
     t.save(model.state_dict(), "model.pt")

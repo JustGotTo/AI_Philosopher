@@ -1,5 +1,6 @@
 import torch.nn as nn
 import re
+from torch import LongTensor
 
 
 class BytePairEncoder(nn.Module):
@@ -10,6 +11,8 @@ class BytePairEncoder(nn.Module):
         self.vocab = {}
         self.frequency = {}
         self.merges = []
+        self.mask_token_id = "<mask>"
+        self.vocab[0] = self.mask_token_id
 
     def get_pairs(self, words):
         frequency = {}
@@ -103,7 +106,6 @@ class BytePairEncoder(nn.Module):
         return tokens
 
     def tokenize(self, prompt):
-        self.vocab = {}
         self.frequency = {}
         self.merges = []
 
@@ -118,8 +120,8 @@ class BytePairEncoder(nn.Module):
             for token in tokens:
                 if token in self.vocab:
                     result.append(self.vocab[token])
-
-        return result
+        result = LongTensor(result)
+        return result #Tokenizer returns a list of tokens, and all new vocab is added to self.vocab
 
     def forward(self, prompt):
         return self.tokenize(prompt)

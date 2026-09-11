@@ -24,8 +24,8 @@ class AddNorm(nn.Module):
         self.weight = nn.Parameter(t.ones(hidden_size))
 
     def forward(self, residual, x):
-        x = residual + x
-        rms = t.sqrt(t.mean(x ** 2, dim=-1, keepdim=True) + self.eps)
+        x = x + residual
+        rms = t.sqrt(t.mean(x.pow(2), dim=-1, keepdim=True) + self.eps)
         return self.weight * (x / rms)
 
 
@@ -98,6 +98,7 @@ class AdaptiveMultiheadMaskedAttention(nn.Module):
         self.t_beliefs = BeliefsLayer(full_size, embedding_size, window_size=self.mask_window_size, embedding_size=embedding_size)
         self.mask = self.create_mask() #creates a mask of the batch_size x batch_size matrix
         self.prompt = prompt
+        self.full_size = full_size
 
         self.Q = t.randn((self.full_size, self.embedding_size))
         self.K = t.randn((self.full_size, self.embedding_size))

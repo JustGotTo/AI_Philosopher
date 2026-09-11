@@ -4,8 +4,8 @@ import random
 import numpy as np
 import torch as torch
 
-from BytePairEncoder import BytePairEncoder
-from Backend import (
+from Backend_construct.BytePairEncoder import BytePairEncoder
+from Backend_construct.Backend import (
     Embedding,
     AddNorm,
     LinearPostAttention,
@@ -170,7 +170,7 @@ class TestBackendLayers(unittest.TestCase):
 class TestTurboQuant(unittest.TestCase):
     def test_turboquant_shape_and_accuracy(self):
         set_seeds()
-        from PolarQuant import PolarQuant
+        from Backend_construct.PolarQuant import PolarQuant
         hidden = 512 # Must be power of 2
         batch, seq_len = 2, 8
         x = torch.randn(batch, seq_len, hidden)
@@ -196,7 +196,7 @@ class TestTurboQuant(unittest.TestCase):
 class TestAdaptiveMultiheadMaskedAttentionMask(unittest.TestCase):
     def test_create_mask_dimensions_and_zero_counts(self):
         set_seeds()
-        from Backend import AdaptiveMultiheadMaskedAttention
+        from Backend_construct.Backend import AdaptiveMultiheadMaskedAttention
         from types import SimpleNamespace
 
         batch_size = 8
@@ -239,7 +239,7 @@ class TestAdaptiveMultiheadMaskedAttentionMask(unittest.TestCase):
 class TestAdaptiveMultiheadMaskedAttentionSplitBatch(unittest.TestCase):
     def test_split_batch_equal_chunks_stride(self):
         set_seeds()
-        from Backend import AdaptiveMultiheadMaskedAttention
+        from Backend_construct.Backend import AdaptiveMultiheadMaskedAttention
         from types import SimpleNamespace
 
         # Prepare an input tensor: (seq, features)

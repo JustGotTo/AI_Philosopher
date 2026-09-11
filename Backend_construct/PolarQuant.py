@@ -46,7 +46,7 @@ class PolarQuant(nn.Module):
 
         self.packed = ((quantized_even & 0xF) | ((quantized_odd & 0xF) << 4))
 
-        return self.packed, self.scale, self.amax
+        return self.packed, (self.scale, self.amax)
 
     def dequantize(self):
 

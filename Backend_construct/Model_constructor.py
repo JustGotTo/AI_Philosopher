@@ -1,6 +1,6 @@
-from Backend import Embedding, AddNorm, WordFeedForward
-from Backend import LinearPostAttention, SentenceFeedForward, PhraseFeedForward, AdaptiveMultiheadMaskedAttention
-from BytePairEncoder import BytePairEncoder
+from Backend_construct.Backend import Embedding, AddNorm, WordFeedForward
+from Backend_construct.Backend import LinearPostAttention, SentenceFeedForward, PhraseFeedForward, AdaptiveMultiheadMaskedAttention
+from Backend_construct.BytePairEncoder import BytePairEncoder
 
 from PolarQuant import PolarQuant
 
@@ -59,20 +59,29 @@ class SLModel(nn.Module):
         self.quant = PolarQuant(hidden_size=hidden_size)
         self.model = nn.ModuleList([Decoder(hidden_size=hidden_size, embedding_dim=embedding_dim, eps=self.eps) for _ in range(6)])
 
+        self.hidden_size = hidden_size
+        self.embedding_dim = embedding_dim
+        self.vocab_size = vocab_size
+
+        self.linear = nn.Linear(int(self.embedding_dim), int(self.vocab_size))
 
     def forward(self, x, device=None):
         if device is None:
             device = next(self.parameters()).device
+
+        if isinstance(x, str):
+            token_ids = self.encoder.tokenize(x)
+            x = t.tensor(token_ids, dtype=t.long, device=device)
+        else:
+            x = x.to(device=device, dtype=t.long)
+
         # We feed in the prompt, which is then converted to tokens by the system
         x = self.embedding.forward(x)
-        x = self.quant.quantize(x)
 
         for elem in self.model:
             x = elem(x)
 
-        x = self.quant.dequantize()
-
-        x = nn.Linear(int(self.embedding_dim), int(self.hidden_size))
+        x = self.linear(x)
 
         return x
 

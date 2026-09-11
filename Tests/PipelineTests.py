@@ -1,6 +1,6 @@
 import unittest
 import torch
-from Model_constructor import SLModel
+from Backend_construct.Model_constructor import SLModel
 
 class TestPipeline(unittest.TestCase):
     def test_slmodel_forward(self):

@@ -1,12 +1,12 @@
 import unittest
 import torch
 import time
-from BytePairEncoder import BytePairEncoder
-from Backend import (
+from Backend_construct.BytePairEncoder import BytePairEncoder
+from Backend_construct.Backend import (
     Embedding, AddNorm, LinearPostAttention, SentenceFeedForward, PhraseFeedForward,
     AdaptiveMultiheadMaskedAttention, BeliefsLayer
 )
-from PolarQuant import PolarQuant
+from Backend_construct.PolarQuant import PolarQuant
 
 TIME_BUDGET_SEC = 0.5
 

@@ -1,6 +1,5 @@
 import torch as t
-import numpy as np
-from PolarQuant import TurboQuant
+from Backend_construct.PolarQuant import TurboQuant
 
 def test_turboquant_accuracy():
     hidden_size = 512
