@@ -18,13 +18,14 @@ hidden_size = 512
 embedding_dim = 512
 output_size = 512
 input_size = 256
+batch_size = 256
 vocab_size = 100000
 eps = 1e-4
 loss = 0
 
 device = t.device("cuda" if t.cuda.is_available() else "cpu")
 
-model = SLModel(hidden_size, embedding_dim, vocab_size=100000, prompt="").to(device)
+model = SLModel(hidden_size, embedding_dim, vocab_size=25000, prompt="").to(device)
 
 fn_loss = t.nn.CrossEntropyLoss()
 optimizer = t.optim.AdamW(model.parameters(), lr=eps)
@@ -53,35 +54,38 @@ for sample in data:
     #tokenizing the text sample
     tokens = model.encoder.tokenize(phrase)
     token_ids = t.tensor(tokens, device=device, dtype=t.long).to(device)
-    for mask_size in (20, 5, 1):
+    for i in range(0, token_ids.shape[0], batch_size):
+        for mask_size in (20, 5, 1):
+            print(f"mask_size={mask_size}, batch_no={i}")
+            mask = create_mask(batch_size, mask_size).to(device)
+            batch = token_ids[i:i + batch_size]
 
-        mask = create_mask(token_ids.shape[0], mask_size).to(device)
+            for j in range(0, len(tokens), mask_size):
 
-        for i in range(0, len(tokens), mask_size):
+                token_curr = batch.clone()
+                mask_positions = t.zeros(
+                    batch.shape,
+                    dtype=t.bool,
+                    device=device
+                )
 
-            token_curr = token_ids.clone()
-            mask_positions = t.zeros(
-                token_ids.shape,
-                dtype=t.bool,
-                device=device
-            )
+                try:
+                    token_curr[j:j + mask_size] = 0  # Making a token list with some masked tokens
+                    # Masked output = token_curr, full output = token_ids.
+                    mask_positions[j:j + mask_size] = True
 
-            try:
-                token_curr[i:i + mask_size] = 0 #Making a token list with some masked tokens
-                #Masked output = token_curr, full output = token_ids.
-                mask_positions[i:i + mask_size] = True
+                except OutOfRangeError:
+                    print(f"mask_size={mask_size} is too large for the current sequence length.")
+                    token_curr[j:] = 0
+                    mask_positions[j:] = True
+                    break
 
-            except OutOfRangeError:
-                print(f"mask_size={mask_size} is too large for the current sequence length.")
-                token_curr[i:] = 0
-                mask_positions[i:] = True
-                break
+                prediction = model(token_curr)
+                loss = fn_loss(prediction[mask_positions], batch[mask_positions])
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                print(f"mask_size={mask_size} loss: {loss.item()}")
 
-            prediction = model(token_curr)
-            loss = fn_loss(prediction[mask_positions], token_ids[mask_positions])
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            print(f"mask_size={mask_size} loss: {loss.item()}")
     print(f"loss: {loss.item()}")
     t.save(model.state_dict(), "model.pt")

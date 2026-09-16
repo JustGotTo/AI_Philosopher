@@ -39,9 +39,9 @@ class LinearPostAttention(nn.Module):
         return self.weight * x + self.bias  # CRASH RISK: last dim of x must equal output_size; otherwise broadcast/shape mismatch occurs
 
 class SentenceFeedForward(nn.Module):
-    def __init__(self, embedding_size, hidden_size, output_size):
+    def __init__(self, hidden_size, output_size):
         super().__init__()
-        self.linear1 = nn.Linear(embedding_size, hidden_size)
+        self.linear1 = nn.Linear(hidden_size, hidden_size)
         self.linear2 = nn.Linear(hidden_size, output_size)
         self.norm = AddNorm(hidden_size)
         self.act = nn.GELU()
